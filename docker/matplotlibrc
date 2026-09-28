@@ -1,0 +1,6 @@
+# 서버용 matplotlib 설정 (MPLCONFIGDIR=/opt/mpl 에서 읽는다)
+# 화면 없는 서버 렌더링 + 나눔고딕 한글 + 마이너스 기호 깨짐 방지
+backend : Agg
+font.family : sans-serif
+font.sans-serif : NanumGothic, DejaVu Sans
+axes.unicode_minus : False

@@ -1,0 +1,39 @@
+# CSV 딥러닝 웹앱 - 기본(CPU) 실행 구성
+#
+#   실행:  docker compose up -d --build
+#   확인:  http://127.0.0.1:8080/health
+#   종료:  docker compose down            (볼륨 appdata 는 유지됨)
+#
+# GPU 사용은 compose.gpu.yaml 을 겹쳐서 실행한다:
+#   docker compose -f compose.yaml -f compose.gpu.yaml up -d --build
+
+name: csv-dl-app
+
+services:
+  app:
+    build:
+      context: .
+      target: cpu-runtime
+    image: csv-dl-app:cpu
+    ports:
+      # 호스트 8080 -> 컨테이너 8000. 로그인이 없으므로 127.0.0.1 에만 게시한다.
+      - "127.0.0.1:8080:8000"
+    volumes:
+      - appdata:/data          # 내부 상태(명명된 볼륨)
+      - ./exports:/exports     # 사용자에게 내보내는 결과물(바인드 마운트)
+    environment:
+      APP_DEVICE: cpu
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  appdata:

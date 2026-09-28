@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CSV 딥러닝 웹앱</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="top">
+    <h1>CSV 딥러닝 웹앱</h1>
+  </header>
+
+  <main>
+    <section class="card" aria-labelledby="upload-title">
+      <h2 id="upload-title">1. CSV 올리기</h2>
+      <form id="upload-form" novalidate>
+        <label class="file-btn" for="file-input">CSV 파일 선택</label>
+        <input id="file-input" name="file" type="file" accept=".csv,text/csv">
+        <p id="file-name" class="muted">선택된 파일 없음</p>
+        <button id="upload-btn" class="primary" type="submit">올리기</button>
+        <progress id="progress" max="100" value="0" hidden></progress>
+      </form>
+      <p class="muted small">50MB 이하 · 10만 행 초과 시 무작위 10만 행 사용 · UTF-8, CP949, EUC-KR</p>
+      <div id="message" role="alert" hidden></div>
+    </section>
+
+    <section class="card" id="detail" aria-labelledby="detail-title" hidden>
+      <h2 id="detail-title">2. 데이터 확인</h2>
+      <p id="detail-name" class="name"></p>
+      <div id="banner" class="notice" hidden></div>
+      <ul id="warnings" class="notice-list" hidden></ul>
+      <dl id="stats" class="stats"></dl>
+
+      <h3>열 요약</h3>
+      <div class="scroll" tabindex="0" aria-label="열 요약 표">
+        <table id="columns-table">
+          <thead>
+            <tr><th>열 이름</th><th>타입</th><th>결측</th><th>고유값</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <h3>미리보기 (상위 20행)</h3>
+      <div class="scroll" tabindex="0" aria-label="미리보기 표">
+        <table id="preview-table">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="list-title">
+      <h2 id="list-title">데이터셋 목록</h2>
+      <p id="list-empty" class="muted" hidden>아직 올린 데이터셋이 없습니다.</p>
+      <ul id="dataset-list" class="dataset-list"></ul>
+    </section>
+  </main>
+
+  <dialog id="confirm-dialog" aria-labelledby="confirm-title">
+    <form method="dialog">
+      <p id="confirm-title"></p>
+      <div class="dialog-actions">
+        <button value="cancel" class="secondary">취소</button>
+        <button value="ok" class="danger">삭제</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

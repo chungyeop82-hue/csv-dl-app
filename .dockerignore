@@ -1,0 +1,10 @@
+# 빌드 컨텍스트 최소화: 필요한 파일만 허용한다 (exports, docs, .git 등은 이미지에 넣지 않음)
+*
+!requirements.txt
+!requirements-dev.txt
+!pytest.ini
+!tests
+!app
+!docker
+**/__pycache__
+**/*.pyc

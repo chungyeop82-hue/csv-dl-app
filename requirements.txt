@@ -1,0 +1,13 @@
+# 공통 의존성 (PyTorch 3종은 Dockerfile 의 ARG 로 CPU/GPU 별도 고정)
+# 웹 프로세스에서는 torch 를 가져오지 않는다.
+fastapi==0.141.1
+starlette==1.0.0
+pydantic==2.13.3
+uvicorn==0.46.0
+python-multipart==0.0.26
+pandas==3.0.2
+numpy==2.4.4
+matplotlib==3.10.9
+scikit-learn==1.8.0
+scipy==1.17.1
+joblib==1.5.3
