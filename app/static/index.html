@@ -3,134 +3,167 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1f5fbf">
   <title>CSV 딥러닝 웹앱</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
   <header class="top">
     <h1>CSV 딥러닝 웹앱</h1>
+    <div class="top-actions">
+      <button id="help-btn" class="icon-btn" type="button" aria-label="도움말 다시 보기">
+        <span aria-hidden="true">?</span>
+      </button>
+      <button id="theme-toggle-btn" class="icon-btn" type="button" aria-label="다크 모드로 전환" aria-pressed="false">
+        <span aria-hidden="true">🌙</span>
+      </button>
+    </div>
   </header>
 
   <main>
-    <section class="card" aria-labelledby="upload-title">
-      <h2 id="upload-title">1. CSV 올리기</h2>
-      <form id="upload-form" novalidate>
-        <label class="file-btn" for="file-input">CSV 파일 선택</label>
-        <input id="file-input" name="file" type="file" accept=".csv,text/csv">
-        <p id="file-name" class="muted">선택된 파일 없음</p>
-        <button id="upload-btn" class="primary" type="submit">올리기</button>
-        <progress id="progress" max="100" value="0" hidden></progress>
-      </form>
-      <p class="muted small">50MB 이하 · 10만 행 초과 시 무작위 10만 행 사용 · UTF-8, CP949, EUC-KR</p>
-      <div id="message" role="alert" hidden></div>
-    </section>
+    <div class="tab-panel" data-tab-panel="upload">
+      <section class="card" aria-labelledby="upload-title">
+        <h2 id="upload-title">1. CSV 올리기</h2>
+        <form id="upload-form" novalidate>
+          <label class="file-btn" for="file-input">CSV 파일 선택</label>
+          <input id="file-input" name="file" type="file" accept=".csv,text/csv">
+          <p id="file-name" class="muted">선택된 파일 없음</p>
+          <button id="upload-btn" class="primary" type="submit">올리기</button>
+          <progress id="progress" max="100" value="0" hidden></progress>
+        </form>
+        <p class="muted small">50MB 이하 · 10만 행 초과 시 무작위 10만 행 사용 · UTF-8, CP949, EUC-KR</p>
+        <div id="message" role="alert" hidden></div>
+      </section>
 
-    <section class="card" id="detail" aria-labelledby="detail-title" hidden>
-      <h2 id="detail-title">2. 데이터 확인</h2>
-      <p id="detail-name" class="name"></p>
-      <div id="banner" class="notice" hidden></div>
-      <ul id="warnings" class="notice-list" hidden></ul>
-      <dl id="stats" class="stats"></dl>
+      <section class="card" id="detail" aria-labelledby="detail-title" hidden>
+        <h2 id="detail-title">2. 데이터 확인</h2>
+        <p id="detail-name" class="name"></p>
+        <div id="banner" class="notice" hidden></div>
+        <ul id="warnings" class="notice-list" hidden></ul>
+        <dl id="stats" class="stats"></dl>
 
-      <h3>열 요약</h3>
-      <div class="scroll" tabindex="0" aria-label="열 요약 표">
-        <table id="columns-table">
-          <thead>
-            <tr><th>열 이름</th><th>타입</th><th>결측</th><th>고유값</th></tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
+        <h3>열 요약</h3>
+        <div class="scroll" tabindex="0" aria-label="열 요약 표">
+          <table id="columns-table">
+            <thead>
+              <tr><th>열 이름</th><th>타입</th><th>결측</th><th>고유값</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
 
-      <h3>미리보기 (상위 20행)</h3>
-      <div class="scroll" tabindex="0" aria-label="미리보기 표">
-        <table id="preview-table">
-          <thead></thead>
-          <tbody></tbody>
-        </table>
-      </div>
+        <h3>미리보기 (상위 20행)</h3>
+        <div class="scroll" tabindex="0" aria-label="미리보기 표">
+          <table id="preview-table">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
 
-      <button id="go-train-btn" class="primary" type="button">이 데이터로 학습하기</button>
-    </section>
+        <button id="go-train-btn" class="primary" type="button">이 데이터로 학습하기</button>
+      </section>
 
-    <section class="card" id="train" aria-labelledby="train-title" hidden>
-      <h2 id="train-title">3. 학습 설정</h2>
-      <p id="train-dataset-name" class="name"></p>
-      <form id="train-form" novalidate>
-        <div class="field">
-          <span class="field-label">문제 유형</span>
-          <div class="radio-group">
-            <label><input type="radio" name="task" value="classification" checked> 분류(Classification)</label>
-            <label><input type="radio" name="task" value="regression"> 회귀(Regression)</label>
+      <section class="card" aria-labelledby="list-title">
+        <h2 id="list-title">데이터셋 목록</h2>
+        <p id="list-empty" class="muted" hidden>아직 올린 데이터셋이 없습니다.</p>
+        <ul id="dataset-list" class="dataset-list"></ul>
+      </section>
+    </div>
+
+    <div class="tab-panel" data-tab-panel="train" hidden>
+      <section class="card" id="train" aria-labelledby="train-title" hidden>
+        <h2 id="train-title">3. 학습 설정</h2>
+        <p id="train-dataset-name" class="name"></p>
+        <form id="train-form" novalidate>
+          <div class="field">
+            <span class="field-label">문제 유형</span>
+            <div class="radio-group">
+              <label><input type="radio" name="task" value="classification" checked> 분류(Classification)</label>
+              <label><input type="radio" name="task" value="regression"> 회귀(Regression)</label>
+            </div>
           </div>
-        </div>
-        <div class="field">
-          <label for="train-target">타깃(Target) 열</label>
-          <select id="train-target" name="target" required></select>
-        </div>
-        <div class="field">
-          <label for="train-preset">모델 크기(프리셋)</label>
-          <select id="train-preset" name="preset">
-            <option value="small" selected>소형 (64 → 32)</option>
-            <option value="medium">중형 (128 → 64 → 32)</option>
-            <option value="large">대형 (256 → 128 → 64)</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="train-epochs">최대 에포크 (1~200)</label>
-          <input id="train-epochs" name="max_epochs" type="number" min="1" max="200" value="100" required>
-        </div>
-        <div class="field">
-          <label for="train-batch">배치 크기</label>
-          <select id="train-batch" name="batch_size">
-            <option value="16">16</option>
-            <option value="32">32</option>
-            <option value="64" selected>64</option>
-            <option value="128">128</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="train-lr">학습률 (0.0001~0.01)</label>
-          <input id="train-lr" name="learning_rate" type="number" min="0.0001" max="0.01" step="0.0001" value="0.001" required>
-        </div>
-        <div class="field checkbox">
-          <label><input id="train-early-stopping" type="checkbox" checked> 조기 종료 사용 (검증 손실이 10 에포크 연속 개선되지 않으면 종료)</label>
-        </div>
-        <button id="train-start-btn" class="primary" type="submit">학습 시작</button>
-      </form>
-      <div id="train-message" role="alert" hidden></div>
-    </section>
+          <div class="field">
+            <label for="train-target">타깃(Target) 열</label>
+            <select id="train-target" name="target" required></select>
+          </div>
+          <div class="field">
+            <label for="train-preset">모델 크기(프리셋)</label>
+            <select id="train-preset" name="preset">
+              <option value="small" selected>소형 (64 → 32)</option>
+              <option value="medium">중형 (128 → 64 → 32)</option>
+              <option value="large">대형 (256 → 128 → 64)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="train-epochs">최대 에포크 (1~200)</label>
+            <input id="train-epochs" name="max_epochs" type="number" min="1" max="200" value="100" required>
+          </div>
+          <div class="field">
+            <label for="train-batch">배치 크기</label>
+            <select id="train-batch" name="batch_size">
+              <option value="16">16</option>
+              <option value="32">32</option>
+              <option value="64" selected>64</option>
+              <option value="128">128</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="train-lr">학습률 (0.0001~0.01)</label>
+            <input id="train-lr" name="learning_rate" type="number" min="0.0001" max="0.01" step="0.0001" value="0.001" required>
+          </div>
+          <div class="field checkbox">
+            <label><input id="train-early-stopping" type="checkbox" checked> 조기 종료 사용 (검증 손실이 10 에포크 연속 개선되지 않으면 종료)</label>
+          </div>
+          <button id="train-start-btn" class="primary" type="submit">학습 시작</button>
+        </form>
+        <div id="train-message" role="alert" hidden></div>
+      </section>
 
-    <section class="card" id="progress-card" aria-labelledby="progress-title" hidden>
-      <h2 id="progress-title">4. 학습 진행</h2>
-      <div class="progress-head">
-        <span id="job-status" class="status-badge"></span>
-        <span id="job-device" class="muted small"></span>
-      </div>
-      <progress id="job-progress" max="100" value="0"></progress>
-      <dl id="job-stats" class="stats"></dl>
-      <div id="job-result" hidden></div>
-      <button id="job-cancel-btn" class="danger" type="button">취소</button>
-
-      <div id="report-section" class="report-section" hidden>
-        <h3>5. 리포트 · 과제 제출</h3>
-        <button id="view-report-btn" class="secondary" type="button">리포트 보기 (새 탭)</button>
-        <div class="field">
-          <label for="student-id-input">학번</label>
-          <input id="student-id-input" type="text" maxlength="50" placeholder="학번 입력" autocomplete="off">
+      <section class="card" id="progress-card" aria-labelledby="progress-title" hidden>
+        <h2 id="progress-title">4. 학습 진행</h2>
+        <div class="progress-head">
+          <span id="job-status" class="status-badge"></span>
+          <span id="job-device" class="muted small device-badge"></span>
         </div>
-        <button id="submit-zip-btn" class="primary" type="button">과제 제출 ZIP 만들기</button>
-        <p class="muted small">제출 ZIP은 서버의 ./exports 폴더에 저장됩니다.</p>
-        <div id="submit-message" role="alert" hidden></div>
-      </div>
-    </section>
+        <progress id="job-progress" max="100" value="0"></progress>
+        <dl id="job-stats" class="stats"></dl>
+        <div id="job-result" hidden></div>
+        <button id="job-cancel-btn" class="danger cancel-lg" type="button">취소</button>
+      </section>
+    </div>
 
-    <section class="card" aria-labelledby="list-title">
-      <h2 id="list-title">데이터셋 목록</h2>
-      <p id="list-empty" class="muted" hidden>아직 올린 데이터셋이 없습니다.</p>
-      <ul id="dataset-list" class="dataset-list"></ul>
-    </section>
+    <div class="tab-panel" data-tab-panel="report" hidden>
+      <section class="card" aria-labelledby="report-title">
+        <h2 id="report-title">5. 리포트 · 과제 제출</h2>
+        <p id="report-empty" class="muted">아직 완료된 학습이 없습니다. '학습' 탭에서 학습을 마치면 이 화면에서 리포트를 보고 제출할 수 있습니다.</p>
+        <div id="report-section" class="report-section" hidden>
+          <button id="view-report-btn" class="secondary" type="button">리포트 보기 (새 탭)</button>
+          <div class="field">
+            <label for="student-id-input">학번</label>
+            <input id="student-id-input" type="text" maxlength="50" placeholder="학번 입력" autocomplete="off">
+          </div>
+          <button id="submit-zip-btn" class="primary" type="button">과제 제출 ZIP 만들기</button>
+          <p class="muted small">제출 ZIP은 서버의 ./exports 폴더에 저장됩니다.</p>
+          <div id="submit-message" role="alert" hidden></div>
+        </div>
+      </section>
+    </div>
   </main>
+
+  <nav id="bottom-tabs" class="bottom-tabs" aria-label="주요 화면 전환">
+    <button type="button" class="tab-btn is-active" data-tab="upload" aria-current="page">
+      <span class="tab-icon" aria-hidden="true">📁</span>
+      <span>업로드</span>
+    </button>
+    <button type="button" class="tab-btn" data-tab="train">
+      <span class="tab-icon" aria-hidden="true">⚙️</span>
+      <span>학습</span>
+    </button>
+    <button type="button" class="tab-btn" data-tab="report">
+      <span class="tab-icon" aria-hidden="true">📊</span>
+      <span>리포트</span>
+    </button>
+  </nav>
 
   <dialog id="confirm-dialog" aria-labelledby="confirm-title">
     <form method="dialog">
@@ -142,6 +175,28 @@
     </form>
   </dialog>
 
+  <dialog id="onboarding-dialog" class="onboarding-dialog" aria-label="CSV란 무엇인가요?">
+    <p class="step-indicator" id="onboarding-progress">1 / 3</p>
+    <div class="onboarding-step" data-step="1">
+      <h2 class="onboarding-title">CSV란 무엇인가요?</h2>
+      <p>CSV는 표 형태의 데이터를 쉼표로 구분해 저장하는 텍스트 파일입니다. 엑셀에서 '다른 이름으로 저장 → CSV'를 선택하면 만들 수 있습니다.</p>
+    </div>
+    <div class="onboarding-step" data-step="2" hidden>
+      <h2 class="onboarding-title">타겟 컬럼 고르기</h2>
+      <p>타겟(Target) 열은 모델이 맞혀야 할 값입니다. '학습' 탭에서 예측하고 싶은 열 하나를 선택하면 됩니다.</p>
+    </div>
+    <div class="onboarding-step" data-step="3" hidden>
+      <h2 class="onboarding-title">결과 읽는 법</h2>
+      <p>학습이 끝나면 '리포트' 탭에서 정확도·오차 같은 지표와 그래프를 확인할 수 있습니다. 정확도·F1·R²는 1에 가까울수록, 오차(MAE·RMSE)는 0에 가까울수록 좋은 결과입니다.</p>
+    </div>
+    <div class="dialog-actions onboarding-actions">
+      <button id="onboarding-skip-btn" type="button" class="secondary">건너뛰기</button>
+      <button id="onboarding-prev-btn" type="button" class="secondary" hidden>이전</button>
+      <button id="onboarding-next-btn" type="button" class="primary">다음</button>
+    </div>
+  </dialog>
+
   <script src="/static/app.js"></script>
+  <script src="/static/mobile.js"></script>
 </body>
 </html>
