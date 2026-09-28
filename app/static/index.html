@@ -111,6 +111,18 @@
       <dl id="job-stats" class="stats"></dl>
       <div id="job-result" hidden></div>
       <button id="job-cancel-btn" class="danger" type="button">취소</button>
+
+      <div id="report-section" class="report-section" hidden>
+        <h3>5. 리포트 · 과제 제출</h3>
+        <button id="view-report-btn" class="secondary" type="button">리포트 보기 (새 탭)</button>
+        <div class="field">
+          <label for="student-id-input">학번</label>
+          <input id="student-id-input" type="text" maxlength="50" placeholder="학번 입력" autocomplete="off">
+        </div>
+        <button id="submit-zip-btn" class="primary" type="button">과제 제출 ZIP 만들기</button>
+        <p class="muted small">제출 ZIP은 서버의 ./exports 폴더에 저장됩니다.</p>
+        <div id="submit-message" role="alert" hidden></div>
+      </div>
     </section>
 
     <section class="card" aria-labelledby="list-title">

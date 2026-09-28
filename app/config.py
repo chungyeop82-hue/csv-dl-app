@@ -26,6 +26,13 @@ CHUNK_BYTES = 1024 * 1024
 DEFAULT_MAX_TRAIN_SECONDS = 600
 DISPATCHER_POLL_SECONDS = 0.3
 
+# 리포트·제출 ZIP (SPEC 6-6, FR-38~40, FR-52)
+PERMUTATION_REPEATS = 3  # 특성별 반복 셔플 횟수(평균해 변동을 줄인다)
+PERMUTATION_TOP_N = 10
+STUDENT_ID_SETTING_KEY = "student_id"
+STUDENT_ID_MAX_CHARS = 50
+EXPORT_NAME_MAX_CHARS = 80  # 데이터셋명 등 ZIP 파일명 각 조각의 최대 길이
+
 
 def max_train_seconds(environ=None) -> int:
     """최대 학습 시간(초). APP_MAX_TRAIN_SECONDS 로 덮어쓸 수 있다(기본 10분)."""

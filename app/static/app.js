@@ -375,6 +375,8 @@ function resetTrainingUI() {
   clearMessageIn("job-result");
   $("job-cancel-btn").hidden = false;
   $("job-cancel-btn").disabled = false;
+  $("report-section").hidden = true;
+  clearMessageIn("submit-message");
 }
 
 function showTrainSection(dataset) {
@@ -521,6 +523,7 @@ async function finalizeJob(jobId) {
 
   if (job.status === "completed") {
     renderCompletedResult(job.metrics);
+    showReportSection(jobId);
   } else if (job.status === "failed") {
     showMessageIn("job-result", "error", job.error_message || "학습이 실패했습니다.", job.error_code, "");
   } else if (job.status === "cancelled") {
@@ -531,6 +534,40 @@ async function finalizeJob(jobId) {
     showMessageIn("job-result", "error", job.error_message || "서버 재시작으로 학습이 중단되었습니다.", job.error_code, "");
   }
 }
+
+// ---- 리포트 · 제출(STEP 7) ----
+async function showReportSection(jobId) {
+  const section = $("report-section");
+  section.hidden = false;
+  clearMessageIn("submit-message");
+  const idInput = $("student-id-input");
+  if (!idInput.value) {
+    const result = await api("GET", "/system/student-id");
+    if (result.ok && result.body.student_id) idInput.value = result.body.student_id;
+  }
+}
+
+$("view-report-btn").addEventListener("click", () => {
+  if (!currentJobId) return;
+  window.open(`/jobs/${encodeURIComponent(currentJobId)}/report.html`, "_blank", "noopener");
+});
+
+$("submit-zip-btn").addEventListener("click", async () => {
+  if (!currentJobId) return;
+  const btn = $("submit-zip-btn");
+  btn.disabled = true;
+  btn.textContent = "제출 ZIP 생성 중…";
+  clearMessageIn("submit-message");
+  const studentId = $("student-id-input").value.trim();
+  const result = await api("POST", `/jobs/${encodeURIComponent(currentJobId)}/submit`, { student_id: studentId || null });
+  btn.disabled = false;
+  btn.textContent = "과제 제출 ZIP 만들기";
+  if (!result.ok) {
+    showMessageIn("submit-message", "error", result.error.message, result.error.code, result.error.request_id);
+    return;
+  }
+  showMessageIn("submit-message", "ok", `제출 ZIP을 만들었습니다: ${result.body.filename} (서버의 exports 폴더에 저장됨)`);
+});
 
 $("job-cancel-btn").addEventListener("click", async () => {
   if (!currentJobId) return;

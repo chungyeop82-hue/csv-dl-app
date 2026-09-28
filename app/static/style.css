@@ -151,7 +151,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
   margin-bottom: 6px;
 }
 .field select,
-.field input[type="number"] {
+.field input[type="number"],
+.field input[type="text"] {
   width: 100%;
   min-height: 44px;
   padding: 8px 10px;
@@ -161,6 +162,15 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
   color: var(--text);
   font: inherit;
 }
+
+/* ---- 리포트 · 제출(STEP 7) ---- */
+.report-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.report-section h3 { margin: 0 0 10px; }
+.report-section button { margin-right: 8px; }
 .radio-group { display: grid; gap: 8px; }
 .radio-group label {
   display: flex;

@@ -258,6 +258,25 @@ class TabularML:
         self.result = result
         return result
 
+    # ---- 저장된 가중치로 추론 전용 인스턴스 만들기 (리포트 생성, SPEC 6-6 전용) ----
+    @classmethod
+    def load_for_inference(cls, config: TabularConfig, state_dict_path, preprocessor, torch_module=None) -> "TabularML":
+        """저장된 state_dict 를 불러와 예측만 할 수 있는 인스턴스를 만든다. 재학습은 하지 않는다.
+
+        리포트(혼동행렬·예측-실제 비교·permutation importance)를 만들 때만 쓴다. 항상 CPU 에서 돌려서
+        학습 당시 장치(GPU 였을 수도 있음)와 무관하게 어떤 환경에서도 리포트를 다시 만들 수 있게 한다.
+        """
+        instance = cls(config, device="cpu", torch_module=torch_module)
+        torch = instance._get_torch()
+        out_dim = preprocessor.n_classes if config.task == CLASSIFICATION else 1
+        instance.model = instance._build(torch, preprocessor.n_features, out_dim)
+        state = torch.load(state_dict_path, map_location="cpu")
+        instance.model.load_state_dict(state)
+        instance.model.eval()
+        instance._device = torch.device("cpu")
+        instance._preprocessor = preprocessor
+        return instance
+
     # ---- 예측·평가 ----
     def _require_fitted(self) -> None:
         if self.model is None:

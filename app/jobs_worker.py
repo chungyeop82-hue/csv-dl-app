@@ -145,6 +145,15 @@ def run_training_job(
                 "baselines": baselines,
                 "n_features": prepared.n_features,
                 "split_sizes": prepared.split_sizes,
+                # 학습곡선(SPEC 6-6 report.pdf/metrics.json): fit() 이 이미 에포크마다 만들어 두는
+                # 값을 그대로 담는다. 학습 루프 자체는 바뀌지 않는다 - 그동안 버려지던 결과를 담을 뿐이다.
+                "history": [asdict(p) for p in result.history],
+                # stop_reason/epochs_run/best_epoch 도 이미 위 바깥쪽 반환값에 있었지만 DB 에는
+                # metrics 컬럼만 저장되므로(_apply_outcome), 리포트에 쓰려면 여기에도 넣어야 한다.
+                "stop_reason": result.stop_reason,
+                "epochs_run": result.epochs_run,
+                "best_epoch": result.best_epoch,
+                "seconds": result.seconds,
             },
             "model_path": str(model_file),
         }

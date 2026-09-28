@@ -1,0 +1,18 @@
+/* 학습 결과 리포트(report.html) 전용 스타일. app/main.py 의 CSP(style-src 'self')를 지키려고
+   report.html 안에 <style> 블록을 넣지 않고 이 파일을 /static 에서 불러온다. */
+body {
+  font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", "NanumGothic", system-ui, sans-serif;
+  max-width: 900px;
+  margin: 24px auto;
+  padding: 0 16px;
+  color: #1c2530;
+  line-height: 1.6;
+}
+h1 { font-size: 1.4rem; }
+h2 { font-size: 1.1rem; margin-top: 28px; border-bottom: 1px solid #d9dee4; padding-bottom: 4px; }
+table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 0.9rem; }
+th, td { border: 1px solid #d9dee4; padding: 6px 8px; text-align: left; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.chart { max-width: 100%; height: auto; display: block; margin: 8px 0; }
+.meta { color: #5b6673; }
+.summary { background: #f4f6f8; border-radius: 8px; padding: 10px 14px; }

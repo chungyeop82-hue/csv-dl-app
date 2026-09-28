@@ -16,6 +16,8 @@ from .datasets import router as datasets_router
 from .errors import error_response, install_error_handling, setup_logging
 from .jobs import router as jobs_router
 from .jobs_worker import Dispatcher
+from .reports import ReportExecutor
+from .reports import router as reports_router
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 log = logging.getLogger("app")
@@ -44,11 +46,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         dispatcher = Dispatcher(settings)
         await dispatcher.start()
         app.state.dispatcher = dispatcher
+        report_executor = ReportExecutor()
+        report_executor.start()
+        app.state.report_executor = report_executor
         log.info("앱 시작 - 저장 폴더 준비 완료")
         try:
             yield
         finally:
             await dispatcher.stop()
+            report_executor.stop()
 
     # 내부 API 문서(/docs, /redoc, /openapi.json)는 열지 않는다.
     app = FastAPI(
@@ -90,6 +96,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(datasets_router)
     app.include_router(jobs_router)
+    app.include_router(reports_router)
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     return app
 

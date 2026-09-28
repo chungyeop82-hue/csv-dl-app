@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 _SCHEMA_V1 = """
 CREATE TABLE IF NOT EXISTS datasets (
@@ -64,6 +64,14 @@ CREATE TABLE IF NOT EXISTS job_events (
 CREATE INDEX IF NOT EXISTS idx_job_events_job ON job_events (job_id, id);
 """
 
+# 앱 전역의 작은 키-값 설정. 지금은 제출 ZIP 파일명에 재사용하는 학번(SPEC FR-52) 하나만 쓴다.
+_SCHEMA_V3 = """
+CREATE TABLE IF NOT EXISTS app_settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+"""
+
 
 def connect(db_path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(str(db_path), timeout=10)
@@ -96,11 +104,26 @@ def init_db(db_path: Path) -> None:
             conn.executescript(_SCHEMA_V1)
         if version < 2:
             conn.executescript(_SCHEMA_V2)
+        if version < 3:
+            conn.executescript(_SCHEMA_V3)
         if version < SCHEMA_VERSION:
             conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         conn.commit()
     finally:
         conn.close()
+
+
+def get_app_setting(conn: sqlite3.Connection, key: str) -> str | None:
+    row = conn.execute("SELECT value FROM app_settings WHERE key=?", (key,)).fetchone()
+    return row["value"] if row is not None else None
+
+
+def set_app_setting(conn: sqlite3.Connection, key: str, value: str) -> None:
+    conn.execute(
+        "INSERT INTO app_settings (key, value) VALUES (?, ?)"
+        " ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        (key, value),
+    )
 
 
 def recover_interrupted_jobs(db_path: Path) -> int:
