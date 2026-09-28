@@ -196,6 +196,7 @@ class Dispatcher:
         self.settings = settings
         self.poll_interval = poll_interval
         self._executor: ProcessPoolExecutor | None = None
+        self._manager: Any = None  # SyncManager: 잡마다 Queue/Value 를 이 매니저에서 만든다(아래 설명)
         self._running: _RunningJob | None = None
         self._task: asyncio.Task | None = None
         self._stopping = False
@@ -205,6 +206,12 @@ class Dispatcher:
 
     async def start(self) -> None:
         self._executor = self._new_executor()
+        # 진행률 Queue·취소 플래그는 반드시 SyncManager(별도 관리자 프로세스)로 만든다: 이미 떠 있는
+        # 워커 풀에 submit() 으로 보내는 인자는 매번 파이프로 피클되는데, MP_CONTEXT.Queue()/Value() 를
+        # 그대로 넘기면 "Queue objects should only be shared between processes through inheritance"
+        # RuntimeError 로 즉시 실패한다(프로세스 생성 시 인자로 줄 때만 허용되는 방식이라서다).
+        # Manager 가 만드는 프록시 객체는 이 경로로도 안전하게 피클된다.
+        self._manager = MP_CONTEXT.Manager()
         self._stopping = False
         self._task = asyncio.create_task(self._loop())
 
@@ -216,6 +223,10 @@ class Dispatcher:
                 await self._task
         if self._executor is not None:
             self._executor.shutdown(wait=False, cancel_futures=True)
+        if self._manager is not None:
+            with contextlib.suppress(Exception):
+                self._manager.shutdown()
+            self._manager = None
 
     def request_cancel(self, job_id: str) -> bool:
         """실행 중인 잡이면 즉시 중단 플래그를 켠다(빠른 경로). 반환값은 '지금 실행 중이었는가'.
@@ -273,8 +284,9 @@ class Dispatcher:
         config = json.loads(job["config_json"])
         dataset_path = str(self.settings.uploads_dir / dataset["stored_name"])
         model_path = str(self.settings.models_dir / f"{job['id']}.pt")
-        queue = MP_CONTEXT.Queue()
-        stop_flag = MP_CONTEXT.Value("b", False)
+        # SyncManager 프록시로 만들어야 한다(start() 의 주석 참고) - 실행 중인 풀에 넘길 수 있는 유일한 방식.
+        queue = self._manager.Queue()
+        stop_flag = self._manager.Value("b", False)
         future = self._executor.submit(
             run_training_job,
             job["id"],

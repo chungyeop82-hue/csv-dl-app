@@ -75,12 +75,14 @@ def test_regression_job_completes(client):
 
 
 def test_cancel_while_active_eventually_settles_to_cancelled(client):
+    # max_epochs 는 TabularConfig 가 허용하는 최댓값(200, SPEC 6-4)까지만 쓸 수 있다. n=2000 과 함께 쓰면
+    # 취소/시간초과가 걸리기 전에 자연 완료될 일이 사실상 없을 만큼 충분히 오래 걸린다.
     d = _upload_ml_dataset(client, n=2000)
     job = client.post(
         "/jobs",
         json={
             "dataset_id": d["id"], "task": "classification", "target": "구간",
-            "preset": "small", "max_epochs": 100000, "early_stopping": False, "batch_size": 16,
+            "preset": "small", "max_epochs": 200, "early_stopping": False, "batch_size": 16,
         },
     ).json()
     client.post(f"/jobs/{job['id']}/cancel")
@@ -95,7 +97,7 @@ def test_timeout_forces_status_timeout(client, monkeypatch):
         "/jobs",
         json={
             "dataset_id": d["id"], "task": "classification", "target": "구간",
-            "preset": "small", "max_epochs": 100000, "early_stopping": False, "batch_size": 16,
+            "preset": "small", "max_epochs": 200, "early_stopping": False, "batch_size": 16,
         },
     ).json()
     final = _wait_for_terminal(client, job["id"], timeout=60.0)
