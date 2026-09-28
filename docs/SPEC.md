@@ -1,7 +1,7 @@
 # 제품 명세 (SPEC)
 
 - 대상: 학생용 Windows 11 PC에서 단독 실행하는 CSV 딥러닝 웹앱
-- 작성일: 2026-09-19 / 최종 수정: 2026-09-28 / 버전: 0.4 / 상태: 초안 (STEP3 범위 확정: 시계열 제외, timeout 상태, 제출 ZIP 형식 반영)
+- 작성일: 2026-09-19 / 최종 수정: 2026-09-28 / 버전: 0.5 / 상태: 초안 (STEP6 실제 구현 반영: FR-28 대기열 제거, FR-32 이어 학습 미지원)
 - 관련 문서: [CLAUDE.md](../CLAUDE.md) (고정 조건) · [ARCHITECTURE.md](./ARCHITECTURE.md) (구조·폴백) · [ENV_CHECK.md](./ENV_CHECK.md) · [SETUP_CHECK.md](./SETUP_CHECK.md)
 - 이 문서의 역할: **무엇을 만드는가**(기능·화면·규칙·수용 기준)를 정합니다. **어떻게 만드는가**(컨테이너, 볼륨, 워커)는 ARCHITECTURE.md가 정합니다. 두 문서가 충돌하면 CLAUDE.md의 고정 조건이 우선합니다.
 
