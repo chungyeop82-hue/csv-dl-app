@@ -6,6 +6,11 @@
 #
 # GPU 사용은 compose.gpu.yaml 을 겹쳐서 실행한다:
 #   docker compose -f compose.yaml -f compose.gpu.yaml up -d --build
+#
+# 테스트(컨테이너 안에서 pytest 실행)는 운영용 app 서비스가 아니라 별도 test 서비스를 쓴다.
+# app(cpu-runtime/gpu-runtime)에는 pytest 등 테스트 의존성을 넣지 않기 때문이다:
+#   docker compose run --build --rm test pytest -q
+# test 서비스는 profiles: ["test"] 로 묶여 있어 `docker compose up`에는 절대 포함되지 않는다.
 
 name: csv-dl-app
 
@@ -34,6 +39,16 @@ services:
       retries: 3
       start_period: 20s
     restart: unless-stopped
+
+  # 테스트 전용 서비스. Dockerfile 의 `test` 타깃(= cpu-runtime + pytest/httpx)을 사용한다.
+  # profiles 로 묶어 `docker compose up`/`up -d` 실행 시 함께 뜨지 않게 한다(app 은 항상 1개만 운영 실행).
+  # 실행: docker compose run --build --rm test pytest -q
+  test:
+    profiles: ["test"]
+    build:
+      context: .
+      target: test
+    image: csv-dl-app:test
 
 volumes:
   appdata:
