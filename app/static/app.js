@@ -23,6 +23,17 @@ const STATUS_LABELS = {
 const TERMINAL_JOB_STATUSES = new Set(["completed", "failed", "cancelled", "timeout", "interrupted"]);
 const DEVICE_LABELS = { cpu: "CPU", cuda: "GPU (CUDA)" };
 
+// job.metrics 하위 지표 키 -> 한글 라벨(app/ml/metrics.py 의 classification_metrics/regression_metrics 와 맞춘다).
+const METRIC_LABELS = {
+  accuracy: "정확도",
+  macro_f1: "매크로 F1",
+  roc_auc: "ROC-AUC",
+  mae: "MAE",
+  rmse: "RMSE",
+  r2: "R²",
+};
+const SPLIT_SIZE_LABELS = { train: "학습(train)", validation: "검증(validation)", test: "평가(test)" };
+
 const $ = (id) => document.getElementById(id);
 
 function el(tag, options = {}, children = []) {
@@ -123,6 +134,58 @@ let jobEventSource = null;
 
 function statItem(label, value) {
   return el("div", {}, [el("dt", { text: label }), el("dd", { text: value })]);
+}
+
+// ---- 학습 결과 지표 표시 ----
+// job.metrics 는 validation/test(accuracy 등의 평면 객체), baselines(모델별 validation/test 를 담은 배열),
+// split_sizes 같은 중첩 구조라서, 단순 문자열 이어붙이기로는 "[object Object]" 가 나온다.
+// 아래 헬퍼들은 그 구조를 그대로 펼쳐서 표(.stats)로 보여준다.
+function formatMetricValue(v) {
+  if (v === null || v === undefined) return "-";
+  if (typeof v === "number") return v.toFixed(4);
+  return String(v);
+}
+function metricsDl(metrics) {
+  const entries = Object.entries(metrics || {});
+  return el("dl", { className: "stats" }, entries.map(([k, v]) =>
+    statItem(METRIC_LABELS[k] || k, formatMetricValue(v))));
+}
+function metricsBlock(title, metrics) {
+  return el("div", { className: "metrics-block" }, [
+    el("h4", { text: title }),
+    metricsDl(metrics),
+  ]);
+}
+function splitSizesBlock(splitSizes) {
+  const entries = Object.entries(splitSizes || {});
+  return el("div", { className: "metrics-block" }, [
+    el("h4", { text: "Split Sizes" }),
+    el("dl", { className: "stats" }, entries.map(([k, v]) =>
+      statItem(SPLIT_SIZE_LABELS[k] || k, Number(v).toLocaleString("ko-KR")))),
+  ]);
+}
+function baselinesBlock(baselines) {
+  if (!baselines || baselines.length === 0) return null;
+  const items = baselines.map((b) => el("div", { className: "baseline-item" }, [
+    el("p", { className: "baseline-name", text: b.label || b.kind }),
+    metricsBlock("Validation", b.validation),
+    metricsBlock("Test", b.test),
+  ]));
+  return el("div", { className: "metrics-block" }, [el("h4", { text: "Baselines" }), ...items]);
+}
+function renderCompletedResult(metrics) {
+  const box = $("job-result");
+  box.className = "ok";
+  const children = [el("p", { className: "result-lead", text: "학습을 완료했습니다." })];
+  if (metrics) {
+    if (metrics.validation) children.push(metricsBlock("Validation", metrics.validation));
+    if (metrics.test) children.push(metricsBlock("Test", metrics.test));
+    const baselinesEl = baselinesBlock(metrics.baselines);
+    if (baselinesEl) children.push(baselinesEl);
+    if (metrics.split_sizes) children.push(splitSizesBlock(metrics.split_sizes));
+  }
+  box.replaceChildren(...children);
+  box.hidden = false;
 }
 
 function renderDetail(d) {
@@ -457,10 +520,7 @@ async function finalizeJob(jobId) {
     : "실행 장치: CPU (CPU 전용 실행)";
 
   if (job.status === "completed") {
-    const metricsText = job.metrics
-      ? Object.entries(job.metrics).map(([k, v]) => `${k}: ${typeof v === "number" ? v.toFixed(4) : v}`).join(" · ")
-      : "";
-    showMessageIn("job-result", "ok", metricsText ? `학습을 완료했습니다. ${metricsText}` : "학습을 완료했습니다.");
+    renderCompletedResult(job.metrics);
   } else if (job.status === "failed") {
     showMessageIn("job-result", "error", job.error_message || "학습이 실패했습니다.", job.error_code, "");
   } else if (job.status === "cancelled") {

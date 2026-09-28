@@ -204,4 +204,18 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
 .status-badge.status-timeout,
 .status-badge.status-interrupted { background: var(--notice-bg); border-color: var(--notice-line); color: #7a5a00; }
 
+/* ---- 학습 결과 지표(Validation/Test/Baselines/Split Sizes) ---- */
+#job-result .result-lead { margin: 0 0 4px; font-weight: 700; }
+#job-result .metrics-block { margin-top: 10px; }
+#job-result .metrics-block h4 { margin: 0 0 4px; font-size: 0.9375rem; }
+#job-result .baseline-item {
+  margin: 8px 0;
+  padding: 8px 10px 2px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+#job-result .baseline-name { margin: 0 0 2px; font-weight: 700; }
+
+
 [hidden] { display: none !important; }
