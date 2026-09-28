@@ -2,6 +2,11 @@
 exports/*
 !exports/.gitkeep
 
+# STEP 9 학생 배포판(dist) - 결과물과 오프라인 이미지(.tar)는 Git 에 넣지 않는다
+dist/exports/*
+!dist/exports/.gitkeep
+dist/offline/offline_images/
+
 __pycache__/
 *.pyc
 .venv/

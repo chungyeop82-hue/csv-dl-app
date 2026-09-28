@@ -1,0 +1,48 @@
+# CSV 딥러닝 웹앱 - 학생 배포판(dist) 실행 구성 (STEP 9)
+#
+# 이 파일은 이미지를 이 PC에서 새로 빌드하지 않고, GitHub Container Registry(GHCR)에
+# 미리 빌드해 올려둔 이미지를 내려받아(pull) 그대로 실행합니다. 기본은 CPU 이미지입니다.
+#
+#   실행(CPU):  시작.bat
+#     docker compose --env-file .env -f compose.dist.yaml pull
+#     docker compose --env-file .env -f compose.dist.yaml up -d
+#   실행(GPU):  시작_GPU.bat
+#     docker compose --env-file .env -f compose.dist.yaml -f compose.gpu.yaml pull
+#     docker compose --env-file .env -f compose.dist.yaml -f compose.gpu.yaml up -d
+#   확인:      http://127.0.0.1:8080/health
+#   종료:      종료.bat  (docker compose --env-file .env -f compose.dist.yaml down)
+#   초기화:    초기화.bat (docker compose --env-file .env -f compose.dist.yaml down -v)
+#
+# 실행 전에 .env.example 을 .env 로 복사하고 APP_IMAGE 값을 실제 GHCR 이미지 경로로 채우세요.
+# (자세한 절차는 README.md, GHCR 배포는 저장소의 .github/workflows/publish-ghcr.yml 참고)
+#
+# 원본 개발용 compose.yaml(로컬 빌드)과 구분하기 위해 프로젝트 이름을 다르게 둔다.
+# 볼륨·컨테이너가 분리되어 개발용 실행과 동시에 두어도 데이터가 섞이지 않는다
+# (다만 호스트 포트 8080은 하나뿐이므로 동시에 띄울 수는 없다).
+name: csv-dl-app-dist
+
+services:
+  app:
+    image: ${APP_IMAGE:-ghcr.io/OWNER/csv-dl-app}:${APP_IMAGE_TAG:-cpu}
+    ports:
+      # 호스트 8080 -> 컨테이너 8000. 로그인이 없으므로 127.0.0.1 에만 게시한다(원본 compose.yaml과 동일한 방침).
+      - "127.0.0.1:8080:8000"
+    volumes:
+      - appdata:/data          # 내부 상태(명명된 볼륨) - 초기화.bat 실행 전까지 유지됨
+      - ./exports:/exports     # 사용자에게 내보내는 결과물(바인드 마운트)
+    environment:
+      APP_DEVICE: cpu
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  appdata:

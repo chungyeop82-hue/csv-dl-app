@@ -1,0 +1,19 @@
+# GPU 오버라이드 (학생 배포판용): compose.dist.yaml 위에 겹쳐서 사용한다. (서비스는 여전히 app 하나)
+#
+#   docker compose --env-file .env -f compose.dist.yaml -f compose.gpu.yaml up -d
+#
+# NVIDIA GPU와 최신 드라이버가 있는 PC에서만 사용한다. 시작_GPU.bat 이 사전 확인 후 이 파일을 사용한다.
+# GPU를 쓸 수 없으면 시작.bat(CPU 기본)을 사용한다 - 기능은 동일하고 속도만 다르다.
+
+services:
+  app:
+    image: ${APP_IMAGE:-ghcr.io/OWNER/csv-dl-app}:${APP_IMAGE_TAG_GPU:-gpu}
+    environment:
+      APP_DEVICE: cuda
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
