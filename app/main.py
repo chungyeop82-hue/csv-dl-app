@@ -14,6 +14,8 @@ from . import db
 from .config import MAX_UPLOAD_BYTES, UPLOAD_OVERHEAD_BYTES, Settings
 from .datasets import router as datasets_router
 from .errors import error_response, install_error_handling, setup_logging
+from .jobs import router as jobs_router
+from .jobs_worker import Dispatcher
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 log = logging.getLogger("app")
@@ -35,8 +37,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         for leftover in settings.tmp_dir.glob("*.part"):
             leftover.unlink(missing_ok=True)
         db.init_db(settings.db_path)
+        recovered = db.recover_interrupted_jobs(settings.db_path)
+        if recovered:
+            log.info("재시작 복구: running 이던 잡 %s건을 interrupted 로 표시", recovered)
+
+        dispatcher = Dispatcher(settings)
+        await dispatcher.start()
+        app.state.dispatcher = dispatcher
         log.info("앱 시작 - 저장 폴더 준비 완료")
-        yield
+        try:
+            yield
+        finally:
+            await dispatcher.stop()
 
     # 내부 API 문서(/docs, /redoc, /openapi.json)는 열지 않는다.
     app = FastAPI(
@@ -77,6 +89,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return FileResponse(STATIC_DIR / "index.html", media_type="text/html; charset=utf-8")
 
     app.include_router(datasets_router)
+    app.include_router(jobs_router)
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     return app
 

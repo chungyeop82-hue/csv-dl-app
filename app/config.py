@@ -22,6 +22,23 @@ NUMERIC_PARSE_RATIO = 0.95
 MAX_FILENAME_CHARS = 200
 CHUNK_BYTES = 1024 * 1024
 
+# 학습 잡 (SPEC FR-51). 환경 변수로 덮어쓸 수 있어 테스트에서 짧게 줄일 수 있다.
+DEFAULT_MAX_TRAIN_SECONDS = 600
+DISPATCHER_POLL_SECONDS = 0.3
+
+
+def max_train_seconds(environ=None) -> int:
+    """최대 학습 시간(초). APP_MAX_TRAIN_SECONDS 로 덮어쓸 수 있다(기본 10분)."""
+    env = os.environ if environ is None else environ
+    raw = env.get("APP_MAX_TRAIN_SECONDS")
+    if raw is None:
+        return DEFAULT_MAX_TRAIN_SECONDS
+    try:
+        value = int(raw)
+    except ValueError:
+        return DEFAULT_MAX_TRAIN_SECONDS
+    return value if value > 0 else DEFAULT_MAX_TRAIN_SECONDS
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -58,6 +75,10 @@ class Settings:
     def log_path(self) -> Path:
         return self.logs_dir / "app.log"
 
+    @property
+    def models_dir(self) -> Path:
+        return self.data_dir / "models"
+
     def ensure_dirs(self) -> None:
-        for d in (self.uploads_dir, self.db_dir, self.tmp_dir, self.logs_dir, self.export_dir):
+        for d in (self.uploads_dir, self.db_dir, self.tmp_dir, self.logs_dir, self.models_dir, self.export_dir):
             d.mkdir(parents=True, exist_ok=True)
