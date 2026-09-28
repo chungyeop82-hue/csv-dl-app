@@ -49,6 +49,68 @@
           <tbody></tbody>
         </table>
       </div>
+
+      <button id="go-train-btn" class="primary" type="button">이 데이터로 학습하기</button>
+    </section>
+
+    <section class="card" id="train" aria-labelledby="train-title" hidden>
+      <h2 id="train-title">3. 학습 설정</h2>
+      <p id="train-dataset-name" class="name"></p>
+      <form id="train-form" novalidate>
+        <div class="field">
+          <span class="field-label">문제 유형</span>
+          <div class="radio-group">
+            <label><input type="radio" name="task" value="classification" checked> 분류(Classification)</label>
+            <label><input type="radio" name="task" value="regression"> 회귀(Regression)</label>
+          </div>
+        </div>
+        <div class="field">
+          <label for="train-target">타깃(Target) 열</label>
+          <select id="train-target" name="target" required></select>
+        </div>
+        <div class="field">
+          <label for="train-preset">모델 크기(프리셋)</label>
+          <select id="train-preset" name="preset">
+            <option value="small" selected>소형 (64 → 32)</option>
+            <option value="medium">중형 (128 → 64 → 32)</option>
+            <option value="large">대형 (256 → 128 → 64)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="train-epochs">최대 에포크 (1~200)</label>
+          <input id="train-epochs" name="max_epochs" type="number" min="1" max="200" value="100" required>
+        </div>
+        <div class="field">
+          <label for="train-batch">배치 크기</label>
+          <select id="train-batch" name="batch_size">
+            <option value="16">16</option>
+            <option value="32">32</option>
+            <option value="64" selected>64</option>
+            <option value="128">128</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="train-lr">학습률 (0.0001~0.01)</label>
+          <input id="train-lr" name="learning_rate" type="number" min="0.0001" max="0.01" step="0.0001" value="0.001" required>
+        </div>
+        <div class="field checkbox">
+          <label><input id="train-early-stopping" type="checkbox" checked> 조기 종료 사용 (검증 손실이 10 에포크 연속 개선되지 않으면 종료)</label>
+        </div>
+        <button id="train-start-btn" class="primary" type="submit">학습 시작</button>
+      </form>
+      <div id="train-message" role="alert" hidden></div>
+    </section>
+
+    <section class="card" id="progress-card" aria-labelledby="progress-title" hidden>
+      <h2 id="progress-title">4. 학습 진행</h2>
+      <div class="progress-head">
+        <span id="job-status" class="status-badge"></span>
+        <span id="job-device" class="muted small"></span>
+      </div>
+      <progress id="job-progress" max="100" value="0"></progress>
+      <dl id="job-stats" class="stats"></dl>
+      <div id="job-result" hidden></div>
+      <button id="job-cancel-btn" class="danger" type="button">취소</button>
     </section>
 
     <section class="card" aria-labelledby="list-title">

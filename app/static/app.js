@@ -10,6 +10,19 @@ const CLIENT_ERRORS = {
   "E-SY-002": "일시적인 문제가 발생했으니, 잠시 후 다시 시도하고 계속되면 요청 번호로 로그를 확인해 주세요.",
 };
 
+// 잡 상태 한글 라벨과 상태 배지 CSS 클래스(app/jobs_worker.py 의 _STATUS_LABELS 와 맞춘다).
+const STATUS_LABELS = {
+  queued: "대기 중",
+  running: "학습 중",
+  completed: "완료",
+  failed: "실패",
+  cancelled: "취소됨",
+  timeout: "시간 초과",
+  interrupted: "중단됨",
+};
+const TERMINAL_JOB_STATUSES = new Set(["completed", "failed", "cancelled", "timeout", "interrupted"]);
+const DEVICE_LABELS = { cpu: "CPU", cuda: "GPU (CUDA)" };
+
 const $ = (id) => document.getElementById(id);
 
 function el(tag, options = {}, children = []) {
@@ -37,9 +50,17 @@ function formatKst(iso) {
   return Number.isNaN(d.getTime()) ? "" : kstFormatter.format(d) + " (KST)";
 }
 
+function formatSeconds(s) {
+  if (s === null || s === undefined || Number.isNaN(s)) return "-";
+  const total = Math.max(0, Math.round(s));
+  if (total < 60) return `${total}초`;
+  return `${Math.floor(total / 60)}분 ${total % 60}초`;
+}
+
 // ---- 메시지 ----
-function showMessage(kind, text, code, requestId) {
-  const box = $("message");
+// message/train-message/job-result 세 상자 모두 같은 모양(성공·오류 배경, 오류 코드 줄)을 쓴다.
+function showMessageIn(boxId, kind, text, code, requestId) {
+  const box = $(boxId);
   box.className = kind;
   box.replaceChildren(el("span", { text }));
   if (code) {
@@ -48,12 +69,21 @@ function showMessage(kind, text, code, requestId) {
   }
   box.hidden = false;
 }
+function clearMessageIn(boxId) {
+  $(boxId).hidden = true;
+  $(boxId).replaceChildren();
+}
+function showMessage(kind, text, code, requestId) {
+  showMessageIn("message", kind, text, code, requestId);
+}
 function clearMessage() {
-  $("message").hidden = true;
-  $("message").replaceChildren();
+  clearMessageIn("message");
 }
 function showClientError(code) {
   showMessage("error", CLIENT_ERRORS[code], code);
+}
+function genericErrorMessage(code) {
+  return CLIENT_ERRORS[code] || "요청을 처리하는 중 문제가 발생했습니다.";
 }
 
 // ---- API ----
@@ -65,28 +95,40 @@ function parseError(xhr) {
   return { code: "E-SY-002", message: CLIENT_ERRORS["E-SY-002"], request_id: "" };
 }
 
-async function api(method, url) {
+async function api(method, url, body) {
   let response;
+  const init = { method };
+  if (body !== undefined) {
+    init.headers = { "Content-Type": "application/json" };
+    init.body = JSON.stringify(body);
+  }
   try {
-    response = await fetch(url, { method });
+    response = await fetch(url, init);
   } catch (_) {
     return { ok: false, error: { code: "E-SY-002", message: CLIENT_ERRORS["E-SY-002"], request_id: "" } };
   }
-  let body = null;
-  try { body = await response.json(); } catch (_) { /* 무시 */ }
+  let payload = null;
+  try { payload = await response.json(); } catch (_) { /* 무시 */ }
   if (!response.ok) {
-    const err = body && body.error ? body.error : { code: "E-SY-002", message: CLIENT_ERRORS["E-SY-002"], request_id: "" };
+    const err = payload && payload.error ? payload.error : { code: "E-SY-002", message: CLIENT_ERRORS["E-SY-002"], request_id: "" };
     return { ok: false, error: err };
   }
-  return { ok: true, body };
+  return { ok: true, body: payload };
 }
 
 // ---- 상세 ----
+let activeDataset = null;
+let currentJobId = null;
+let jobEventSource = null;
+
 function statItem(label, value) {
   return el("div", {}, [el("dt", { text: label }), el("dd", { text: value })]);
 }
 
 function renderDetail(d) {
+  activeDataset = d;
+  resetTrainingUI();
+
   $("detail").hidden = false;
   $("detail-name").textContent = d.original_name;
 
@@ -186,7 +228,11 @@ function confirmDelete(d) {
       showMessage("error", result.error.message, result.error.code, result.error.request_id);
     } else {
       showMessage("ok", "데이터셋을 삭제했습니다.");
-      if ($("detail-name").textContent === d.original_name) $("detail").hidden = true;
+      if (activeDataset && activeDataset.id === d.id) {
+        $("detail").hidden = true;
+        resetTrainingUI();
+        activeDataset = null;
+      }
     }
     await loadList();
   });
@@ -244,6 +290,197 @@ $("upload-form").addEventListener("submit", (event) => {
   });
   setUploading(true);
   xhr.send(data);
+});
+
+// ---- 학습 ----
+// 학습 화면(3. 학습 설정, 4. 학습 진행)을 초기 상태로 되돌린다. 다른 데이터셋을 열거나
+// 활성 데이터셋을 지웠을 때, 남아 있던 이전 학습 화면이 그대로 보이지 않도록 호출한다.
+function resetTrainingUI() {
+  if (jobEventSource) {
+    jobEventSource.close();
+    jobEventSource = null;
+  }
+  currentJobId = null;
+  $("train").hidden = true;
+  clearMessageIn("train-message");
+  $("progress-card").hidden = true;
+  $("job-status").textContent = "";
+  $("job-status").className = "status-badge";
+  $("job-device").textContent = "";
+  $("job-progress").value = 0;
+  $("job-stats").replaceChildren();
+  clearMessageIn("job-result");
+  $("job-cancel-btn").hidden = false;
+  $("job-cancel-btn").disabled = false;
+}
+
+function showTrainSection(dataset) {
+  resetTrainingUI();
+  $("train-dataset-name").textContent = dataset.original_name;
+
+  const targetSelect = $("train-target");
+  targetSelect.replaceChildren(...dataset.columns.map((c) =>
+    el("option", { text: `${c.name} (${c.type_label})`, attrs: { value: c.name } })));
+  const preferred = dataset.columns.find((c) => c.name === "TargetBin");
+  if (preferred) targetSelect.value = preferred.name;
+
+  $("train").hidden = false;
+  $("train").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+$("go-train-btn").addEventListener("click", () => {
+  if (!activeDataset) return;
+  showTrainSection(activeDataset);
+});
+
+$("train-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  clearMessageIn("train-message");
+  if (!activeDataset) return;
+
+  const task = document.querySelector('input[name="task"]:checked').value;
+  const target = $("train-target").value;
+  if (!target) {
+    showMessageIn("train-message", "error", "타깃 열을 선택해 주세요.");
+    return;
+  }
+
+  const body = {
+    dataset_id: activeDataset.id,
+    task,
+    target,
+    preset: $("train-preset").value,
+    max_epochs: parseInt($("train-epochs").value, 10),
+    batch_size: parseInt($("train-batch").value, 10),
+    learning_rate: parseFloat($("train-lr").value),
+    early_stopping: $("train-early-stopping").checked,
+  };
+
+  const startBtn = $("train-start-btn");
+  startBtn.disabled = true;
+  startBtn.textContent = "요청 중…";
+  const result = await api("POST", "/jobs", body);
+  startBtn.disabled = false;
+  startBtn.textContent = "학습 시작";
+
+  if (!result.ok) {
+    showMessageIn("train-message", "error", result.error.message, result.error.code, result.error.request_id);
+    return;
+  }
+  startJobTracking(result.body.id);
+});
+
+function startJobTracking(jobId) {
+  if (jobEventSource) jobEventSource.close();
+  currentJobId = jobId;
+
+  $("train").hidden = true;
+  $("progress-card").hidden = false;
+  $("job-status").textContent = STATUS_LABELS.queued;
+  $("job-status").className = "status-badge status-queued";
+  $("job-device").textContent = "실행 장치: 학습 완료 후 확인 가능(CPU 전용 실행)";
+  $("job-progress").value = 0;
+  $("job-stats").replaceChildren();
+  clearMessageIn("job-result");
+  $("job-cancel-btn").hidden = false;
+  $("job-cancel-btn").disabled = false;
+  $("progress-card").scrollIntoView({ behavior: "smooth", block: "start" });
+
+  const es = new EventSource(`/jobs/${encodeURIComponent(jobId)}/events`);
+  jobEventSource = es;
+
+  es.addEventListener("progress", (e) => {
+    let payload;
+    try { payload = JSON.parse(e.data); } catch (_) { return; }
+    renderJobProgress(payload);
+  });
+
+  es.addEventListener("done", (e) => {
+    let payload;
+    try { payload = JSON.parse(e.data); } catch (_) { payload = null; }
+    if (payload) renderJobProgress(payload);
+    es.close();
+    if (jobEventSource === es) jobEventSource = null;
+    finalizeJob(jobId);
+  });
+
+  // 서버가 "event: error" 로 보내는 경우(존재하지 않는 잡)와, 연결 자체가 끊어지는 경우가
+  // 둘 다 EventSource 의 "error" 이벤트로 들어온다(SSE 사양상 이름이 같으면 겹친다).
+  es.addEventListener("error", (e) => {
+    let payload = null;
+    try { payload = e.data ? JSON.parse(e.data) : null; } catch (_) { /* 무시 */ }
+    es.close();
+    if (jobEventSource === es) jobEventSource = null;
+    $("job-cancel-btn").hidden = true;
+    if (payload && payload.code) {
+      showMessageIn("job-result", "error", genericErrorMessage(payload.code), payload.code);
+    } else {
+      showMessageIn("job-result", "error", "진행률 연결이 끊어졌습니다. 목록에서 잡 상태를 다시 확인해 주세요.", "E-SY-002");
+    }
+  });
+}
+
+function renderJobProgress(payload) {
+  const status = payload.status;
+  $("job-status").textContent = STATUS_LABELS[status] || status;
+  $("job-status").className = "status-badge status-" + status;
+
+  const progress = payload.progress;
+  if (progress && progress.max_epochs) {
+    $("job-progress").value = Math.round((progress.epoch / progress.max_epochs) * 100);
+    const stats = [
+      statItem("에포크", `${progress.epoch} / ${progress.max_epochs}`),
+      statItem("학습 손실", progress.train_loss != null ? progress.train_loss.toFixed(4) : "-"),
+      statItem("검증 손실", progress.val_loss != null ? progress.val_loss.toFixed(4) : "-"),
+      statItem("예상 남은 시간", formatSeconds(progress.eta_sec)),
+    ];
+    for (const [key, value] of Object.entries(progress.val_metrics || {})) {
+      stats.push(statItem(key, typeof value === "number" ? value.toFixed(4) : String(value)));
+    }
+    $("job-stats").replaceChildren(...stats);
+  }
+
+  if (TERMINAL_JOB_STATUSES.has(status)) {
+    $("job-cancel-btn").hidden = true;
+  }
+}
+
+async function finalizeJob(jobId) {
+  const result = await api("GET", "/jobs/" + encodeURIComponent(jobId));
+  if (!result.ok) {
+    showMessageIn("job-result", "error", result.error.message, result.error.code, result.error.request_id);
+    return;
+  }
+  const job = result.body;
+  $("job-device").textContent = job.device
+    ? `실행 장치: ${DEVICE_LABELS[job.device] || job.device}`
+    : "실행 장치: CPU (CPU 전용 실행)";
+
+  if (job.status === "completed") {
+    const metricsText = job.metrics
+      ? Object.entries(job.metrics).map(([k, v]) => `${k}: ${typeof v === "number" ? v.toFixed(4) : v}`).join(" · ")
+      : "";
+    showMessageIn("job-result", "ok", metricsText ? `학습을 완료했습니다. ${metricsText}` : "학습을 완료했습니다.");
+  } else if (job.status === "failed") {
+    showMessageIn("job-result", "error", job.error_message || "학습이 실패했습니다.", job.error_code, "");
+  } else if (job.status === "cancelled") {
+    showMessageIn("job-result", "ok", "학습을 취소했습니다.");
+  } else if (job.status === "timeout") {
+    showMessageIn("job-result", "error", job.error_message || "학습이 시간 초과로 중단되었습니다.", job.error_code, "");
+  } else if (job.status === "interrupted") {
+    showMessageIn("job-result", "error", job.error_message || "서버 재시작으로 학습이 중단되었습니다.", job.error_code, "");
+  }
+}
+
+$("job-cancel-btn").addEventListener("click", async () => {
+  if (!currentJobId) return;
+  $("job-cancel-btn").disabled = true;
+  const result = await api("POST", `/jobs/${encodeURIComponent(currentJobId)}/cancel`);
+  if (!result.ok) {
+    $("job-cancel-btn").disabled = false;
+    showMessageIn("job-result", "error", result.error.message, result.error.code, result.error.request_id);
+  }
+  // 성공하면 SSE 스트림이 곧 cancelled/기타 종료 상태를 내려보낸다.
 });
 
 loadList();
