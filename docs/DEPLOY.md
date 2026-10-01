@@ -233,7 +233,7 @@ WebView 한 화면짜리 래퍼 앱(주소를 `http://<LAN_IP>:8080`으로 고�
 | QR 인코더 RS/BCH 자기 검증 | 통과 | `tests/test_qrcode_gen.py` (의존성 없는 대수적 검증) |
 | QR 인코더 ↔ OpenCV 왕복 디코딩 | 통과 | 실제 LAN 주소 형태 + 임의 ASCII 약 50개, 버전 1~3 경계값 전부 포함, 49/49 성공 |
 | QR SVG → 헤드리스 브라우저 렌더링 → OpenCV 디코딩 | 통과 | 앱이 실제로 내보내는 `to_svg()` 결과 그대로 사용 |
-| `app/qr.py` 엔드포인트 단위 테스트(`tests/test_qr.py`) | 작성됨, **미실행** | 이 작업 환경에 `fastapi` 등 패키지 저장소 접근이 막혀 있어 설치하지 못함(STEP 9와 동일한 사유). `docker compose up --build` 가능한 PC에서 `pytest` 실행 필요 |
+| `app/qr.py` 엔드포인트 단위 테스트(`tests/test_qr.py`) | 실제 Windows PC에서 1차 실행 - **213개 중 211 passed, 2 failed**, 수정 후 **재실행 필요** | `docker compose run --build --rm test pytest tests/test_qrcode_gen.py tests/test_qr.py -q` 로 처음 실행했을 때, `test_qr_svg_rejects_non_http_text`/`test_qr_svg_rejects_too_long_text` 2건이 HTTP 상태·오류 코드·request_id는 모두 맞았지만 `tests/helpers.py`의 "한국어 한 문장·마침표 1개(`message.count('.') == 1`)" 규칙에서만 실패했다. 원인은 `E-QR-001` 메시지에 `시작.bat`/`시작_GPU.bat`처럼 마침표가 들어간 파일명을 그대로 넣어 문장 안에 마침표가 3개가 된 것. `app/catalog.py`의 `E-QR-001` 메시지만 "시작 스크립트"로 바꿔 수정했다(커밋 `fb416ad`, `tests/helpers.py`·QR 인코더·`app/qr.py` 동작·STEP 1~9는 그대로). 이 수정이 실제로 213개 전부를 통과시키는지는 이 작업 환경이 Linux라 Docker/pytest를 실행할 수 없어 **직접 확인하지 못했다** - 위 명령을 Windows PC에서 다시 실행해 확인 필요 |
 | `compose.dist.yaml` YAML 문법 | 통과 | `yaml.safe_load` 파싱 검증 |
 | `get_lan_ip.ps1`, `시작.bat`/`시작_GPU.bat`/`방화벽_허용.bat`/`진단.bat` 실제 실행 | **미검증** | 클라우드/Linux 작업 환경이라 PowerShell·cmd.exe를 실행할 수 없음(STEP 9와 동일한 한계). 문법은 기존에 검증된 STEP 9 스크립트의 관용구를 그대로 재사용해 손으로 신중히 검토함 |
 | 실제 스마트폰 실기기 접속(업로드→학습→결과→리포트→제출 ZIP) | **미검증** | Windows PC·스마트폰·실제 Wi-Fi가 필요하며 이 작업 환경에는 없음 |
