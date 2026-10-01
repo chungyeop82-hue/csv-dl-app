@@ -183,6 +183,55 @@ if "!APP_RUNNING!"=="0" (
 )
 echo.
 
+echo [12] LAN IPv4 주소 (스마트폰 접속용)
+set "DIAG_LAN_IP="
+if exist "scripts\get_lan_ip.ps1" (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\get_lan_ip.ps1" > "%TMP1%" 2>nul
+    set /p DIAG_LAN_IP=<"%TMP1%"
+)
+if not defined DIAG_LAN_IP (
+    echo   결과: 확인 불가. Windows 설정 - 네트워크 및 인터넷에서 Wi-Fi의 IPv4 주소를 직접 확인하세요.
+) else (
+    echo   결과: !DIAG_LAN_IP!
+)
+echo.
+
+echo [13] 8080 포트 LISTEN 상태 (0.0.0.0 바인딩 여부)
+netstat -ano | findstr "LISTENING" | findstr "0.0.0.0:8080" > "%TMP1%" 2>nul
+for %%Z in ("%TMP1%") do set "LISTEN_SIZE=%%~zZ"
+if "!LISTEN_SIZE!"=="0" (
+    echo   결과: 확인 필요. 0.0.0.0:8080 으로 LISTEN 중인 프로세스를 찾지 못했습니다.
+    echo   원인 예시: 앱이 꺼져 있거나, 아직 이전 버전(127.0.0.1 전용)으로 실행 중일 수 있습니다.
+    echo   시작.bat 또는 시작_GPU.bat 을 다시 실행해 보세요.
+) else (
+    echo   결과: 정상. 0.0.0.0:8080 으로 LISTEN 중이라 LAN의 다른 기기에서도 접속할 수 있습니다.
+)
+echo.
+
+echo [14] Windows Firewall 상태 (TCP 8080 인바운드)
+powershell -NoProfile -Command "$r = Get-NetFirewallRule -DisplayName 'CSV 딥러닝 웹앱 LAN 8080' -ErrorAction SilentlyContinue; if ($r) { if ($r.Enabled -eq 1 -or $r.Enabled -eq 'True') { 'ALLOW' } else { 'DISABLED' } } else { 'NONE' }" > "%TMP1%" 2>nul
+set "FW_DIAG="
+set /p FW_DIAG=<"%TMP1%"
+if "!FW_DIAG!"=="ALLOW" (
+    echo   결과: 정상. CSV 딥러닝 웹앱 LAN 8080 규칙으로 TCP 8080 인바운드가 허용되어 있습니다.
+) else if "!FW_DIAG!"=="DISABLED" (
+    echo   결과: 확인 필요. 규칙은 있으나 비활성화 상태입니다. 방화벽_허용.bat 을 다시 실행하거나 Windows 방화벽 설정에서 활성화하세요.
+) else (
+    echo   결과: 확인 필요. 아직 허용 규칙이 없습니다. 스마트폰 접속이 안 되면 방화벽_허용.bat 을 실행하세요.
+    echo   ^(이 진단에서는 사용자 확인 없이 방화벽 설정을 바꾸지 않습니다.^)
+)
+echo.
+
+echo [15] 스마트폰 접속 주소
+if not defined DIAG_LAN_IP (
+    echo   결과: LAN IPv4를 확인할 수 없어 주소를 만들 수 없습니다. 위 [12] 항목을 참고하세요.
+) else (
+    echo   PC:       http://localhost:8080
+    echo   스마트폰:  http://!DIAG_LAN_IP!:8080
+    echo   QR 코드:  http://localhost:8080/qr?text=http://!DIAG_LAN_IP!:8080
+)
+echo.
+
 del "%TMP1%" >nul 2>&1
 del "%TMP2%" >nul 2>&1
 

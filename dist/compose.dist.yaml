@@ -1,4 +1,4 @@
-# CSV 딥러닝 웹앱 - 학생 배포판(dist) 실행 구성 (STEP 9)
+# CSV 딥러닝 웹앱 - 학생 배포판(dist) 실행 구성 (STEP 9, LAN/QR 접속은 STEP 10에서 추가)
 #
 # 이 파일은 이미지를 이 PC에서 새로 빌드하지 않고, GitHub Container Registry(GHCR)에
 # 미리 빌드해 올려둔 이미지를 내려받아(pull) 그대로 실행합니다. 기본은 CPU 이미지입니다.
@@ -9,7 +9,8 @@
 #   실행(GPU):  시작_GPU.bat
 #     docker compose --env-file .env -f compose.dist.yaml -f compose.gpu.yaml pull
 #     docker compose --env-file .env -f compose.dist.yaml -f compose.gpu.yaml up -d
-#   확인:      http://127.0.0.1:8080/health
+#   확인(PC):       http://127.0.0.1:8080/health
+#   확인(스마트폰):  http://<PC의 LAN IPv4>:8080/health  (시작.bat 실행 시 화면에 표시됨, STEP 10)
 #   종료:      종료.bat  (docker compose --env-file .env -f compose.dist.yaml down)
 #   초기화:    초기화.bat (docker compose --env-file .env -f compose.dist.yaml down -v)
 #
@@ -25,8 +26,12 @@ services:
   app:
     image: ${APP_IMAGE:-ghcr.io/OWNER/csv-dl-app}:${APP_IMAGE_TAG:-cpu}
     ports:
-      # 호스트 8080 -> 컨테이너 8000. 로그인이 없으므로 127.0.0.1 에만 게시한다(원본 compose.yaml과 동일한 방침).
-      - "127.0.0.1:8080:8000"
+      # 호스트 8080 -> 컨테이너 8000. STEP 10: 같은 Wi-Fi(LAN)의 스마트폰 등에서도 접속할 수 있도록
+      # 0.0.0.0(모든 네트워크 인터페이스)에 게시한다. 원본 개발용 compose.yaml은 127.0.0.1 전용으로 유지한다.
+      # 인터넷(외부망) 공개가 아니라 이 PC가 속한 로컬 네트워크(LAN) 내 접속만을 전제로 한다 -
+      # 실제 외부 노출 여부는 공유기/네트워크의 NAT·포트포워딩 설정에 따르며, 가정용 공유기의 기본값에서는
+      # LAN 밖(인터넷)에서 바로 접속되지 않는다. 방화벽_허용.bat/진단.bat 으로 LAN 접속 상태를 확인하세요.
+      - "0.0.0.0:8080:8000"
     volumes:
       - appdata:/data          # 내부 상태(명명된 볼륨) - 초기화.bat 실행 전까지 유지됨
       - ./exports:/exports     # 사용자에게 내보내는 결과물(바인드 마운트)

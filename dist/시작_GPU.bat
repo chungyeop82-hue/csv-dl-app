@@ -136,18 +136,32 @@ echo [6/6] 브라우저를 엽니다...
 start "" "http://localhost:8080"
 
 echo.
-echo 이 PC의 사설 LAN IP 주소, 참고용:
-powershell -NoProfile -Command "Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -notlike '169.254.*' -and $_.IPAddress -ne '127.0.0.1' } | Select-Object -First 1 -ExpandProperty IPAddress" > "%TEMP%\csvdlapp_lan_ip.txt" 2>nul
+echo 같은 Wi-Fi(LAN)에 연결된 스마트폰 접속 주소를 확인합니다...
 set "LAN_IP="
-set /p LAN_IP=<"%TEMP%\csvdlapp_lan_ip.txt"
-del "%TEMP%\csvdlapp_lan_ip.txt" >nul 2>&1
-if not defined LAN_IP set "LAN_IP=확인 불가"
-echo   !LAN_IP!
-echo   참고용 정보입니다. 앱은 보안을 위해 이 PC 안에서만 열려 있어 다른 기기에서는 접속할 수 없습니다.
+if exist "scripts\get_lan_ip.ps1" (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\get_lan_ip.ps1" > "%TEMP%\csvdlapp_lan_ip.txt" 2>nul
+    set /p LAN_IP=<"%TEMP%\csvdlapp_lan_ip.txt"
+    del "%TEMP%\csvdlapp_lan_ip.txt" >nul 2>&1
+)
+
 echo.
 echo =====================================================
-echo  실행 완료. 브라우저에서 자동으로 열리지 않으면 아래 주소로 접속하세요.
-echo    http://localhost:8080
+echo  실행 완료.
+echo   PC:      http://localhost:8080
+if defined LAN_IP (
+    echo   스마트폰: http://!LAN_IP!:8080   ^(같은 Wi-Fi에서만 접속 가능^)
+    echo.
+    echo  스마트폰 카메라로 찍을 QR 코드 페이지를 추가로 엽니다...
+    start "" "http://localhost:8080/qr?text=http://!LAN_IP!:8080"
+    echo  스마트폰에서 접속이 안 되면:
+    echo   1^) PC와 스마트폰이 같은 Wi-Fi에 연결되어 있는지 확인하세요.
+    echo   2^) 방화벽_허용.bat 을 실행해 8080 포트를 허용했는지 확인하세요.
+    echo   3^) 진단.bat 으로 자세한 상태를 확인하세요.
+) else (
+    echo   스마트폰: 확인 불가합니다.
+    echo   Windows 설정 - 네트워크 및 인터넷에서 Wi-Fi의 IPv4 주소를 직접 확인한 뒤
+    echo   스마트폰 브라우저에 http://^<해당 IP^>:8080 을 입력해 접속해 보세요.
+)
 echo  종료하려면 종료.bat 을 실행하세요.
 echo =====================================================
 pause

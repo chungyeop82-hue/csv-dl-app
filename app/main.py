@@ -1,4 +1,9 @@
-"""CSV 딥러닝 웹앱 진입점. 로그인 없음·사용자 1명 전제이며, 포트는 compose 에서 127.0.0.1 에만 게시한다."""
+"""CSV 딥러닝 웹앱 진입점. 로그인 없음·사용자 1명 전제.
+
+포트 게시(바인딩)는 compose 파일이 정한다 - 개발용 compose.yaml 은 127.0.0.1(이 PC) 전용이고,
+학생 배포판 dist/compose.dist.yaml 은 같은 Wi-Fi(LAN)에서도 접속할 수 있도록 0.0.0.0 으로 게시한다
+(STEP 10). 이 파일(앱 코드) 자체는 바인딩 방식과 무관하게 동일하게 동작한다.
+"""
 
 from __future__ import annotations
 
@@ -16,6 +21,7 @@ from .datasets import router as datasets_router
 from .errors import error_response, install_error_handling, setup_logging
 from .jobs import router as jobs_router
 from .jobs_worker import Dispatcher
+from .qr import router as qr_router
 from .reports import ReportExecutor
 from .reports import router as reports_router
 
@@ -97,6 +103,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(datasets_router)
     app.include_router(jobs_router)
     app.include_router(reports_router)
+    app.include_router(qr_router)  # STEP 10: 스마트폰 LAN 접속용 QR 보조 페이지
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     return app
 

@@ -1,0 +1,89 @@
+/* /qr 페이지 전용 스타일 (STEP 10). style.css 와 변수명을 공유하지 않는 독립 파일이다.
+   CSP(style-src 'self')를 지키기 위해 인라인 style 을 쓰지 않고 이 파일만 사용한다. */
+:root {
+  --qr-bg: #f4f6f8;
+  --qr-card: #ffffff;
+  --qr-text: #1c2530;
+  --qr-muted: #5b6673;
+  --qr-line: #d9dee4;
+  --qr-primary: #1f5fbf;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --qr-bg: #10151c;
+    --qr-card: #1b212b;
+    --qr-text: #e8edf2;
+    --qr-muted: #9aa7b4;
+    --qr-line: #57647a;
+    --qr-primary: #5b9bff;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  margin: 0;
+  background: var(--qr-bg);
+  color: var(--qr-text);
+  font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", "NanumGothic", system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.qr-wrap {
+  max-width: 420px;
+  margin: 24px auto;
+  padding: 24px 20px;
+  background: var(--qr-card);
+  border: 1px solid var(--qr-line);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.qr-wrap h1 {
+  margin: 0 0 12px;
+  font-size: 1.25rem;
+  color: var(--qr-primary);
+}
+
+.qr-wrap p {
+  margin: 10px 0;
+  text-align: left;
+}
+
+.qr-img {
+  display: block;
+  margin: 16px auto;
+  width: 100%;
+  max-width: 320px;
+  height: auto;
+  background: #ffffff;
+  border: 1px solid var(--qr-line);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.qr-url {
+  word-break: break-all;
+}
+
+.qr-url code {
+  background: var(--qr-bg);
+  border: 1px solid var(--qr-line);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 0.95rem;
+}
+
+.qr-note {
+  color: var(--qr-muted);
+  font-size: 0.9rem;
+  text-align: left;
+}
