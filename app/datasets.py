@@ -22,6 +22,7 @@ from .config import (
 )
 from .csv_ingest import ingest
 from .errors import AppError
+from .jobs_worker import QUEUED, RUNNING
 
 log = logging.getLogger("app")
 router = APIRouter()
@@ -182,6 +183,12 @@ def delete_dataset(dataset_id: str, request: Request):
     학습 이력(jobs, job_events)도 함께 정리한다. 이 앱은 되돌리기가 없는 1인 사용자용 도구라,
     원본 CSV가 사라진 뒤에 남는 학습 이력은 다시 보거나 재현할 수 없어 의미가 없기 때문이다.
 
+    단, queued/running 인 "활성" Job이 있으면 삭제 자체를 거부한다(E-DS-003) - 학습이 아직
+    끝나지 않은 데이터셋을 자동으로 함께 정리해 버리면, 지금 막 진행 중이거나 곧 시작될 학습이
+    중간에 파일을 잃는 상태가 될 수 있기 때문이다. completed/failed/cancelled/timeout/
+    interrupted 처럼 이미 끝난(terminal) Job만 있으면 그 이력까지 함께 정리하고 삭제를
+    허용한다.
+
     순서가 중요하다: app/db.py의 jobs.dataset_id 는 datasets.id 를 FOREIGN KEY 로 참조하지만
     ON DELETE CASCADE 가 없다(의도적으로 끄지 않는다). 예전 코드처럼 CSV 파일을 먼저 지우고 나서
     자식 행(jobs/job_events) 없이 곧장 datasets 행만 지우려 하면 FK 위반으로 500(E-SY-002)이 나고,
@@ -199,6 +206,12 @@ def delete_dataset(dataset_id: str, request: Request):
         row = conn.execute("SELECT stored_name FROM datasets WHERE id = ?", (dataset_id,)).fetchone()
         if row is None:
             raise AppError("E-DS-001", detail="없는 id")
+        active = conn.execute(
+            "SELECT id FROM jobs WHERE dataset_id = ? AND status IN (?, ?) LIMIT 1",
+            (dataset_id, QUEUED, RUNNING),
+        ).fetchone()
+        if active is not None:
+            raise AppError("E-DS-003", detail=f"활성 작업 {active['id']}")
         job_rows = conn.execute("SELECT id, model_path FROM jobs WHERE dataset_id = ?", (dataset_id,)).fetchall()
         job_ids = [j["id"] for j in job_rows]
         if job_ids:

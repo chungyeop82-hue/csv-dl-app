@@ -194,3 +194,96 @@ def test_delete_leaves_no_related_rows_in_any_table(client, settings):
         assert conn.execute("SELECT COUNT(*) FROM datasets WHERE id=?", (d["id"],)).fetchone()[0] == 0
         assert conn.execute("SELECT COUNT(*) FROM jobs WHERE dataset_id=?", (d["id"],)).fetchone()[0] == 0
         assert conn.execute("SELECT COUNT(*) FROM job_events WHERE job_id=?", (job_id,)).fetchone()[0] == 0
+
+
+# --- 추가 보강: 활성(queued/running) Job이 있으면 삭제 자체를 거부 -----------------------------
+#
+# 위 원자적 삭제만으로는, 지금 막 대기 중이거나 실행 중인 학습이 있는 데이터셋을 삭제하면 그
+# 학습의 CSV 파일이 갑자기 사라질 수 있었다. 정책: queued/running Job이 하나라도 있으면 삭제
+# 자체를 거부(E-DS-003)하고, completed/failed/cancelled/timeout/interrupted 처럼 이미 끝난
+# Job만 있으면(위 B~E 테스트) 그대로 허용한다.
+
+
+def test_delete_rejected_when_queued_job_exists(client, settings):
+    """1. queued Job이 있는 데이터셋 삭제 → 거부."""
+    from app import db
+
+    d = upload(client, make_csv(60)).json()
+    with db.session(settings.db_path) as conn:
+        _insert_job(conn, d["id"], "queued")
+
+    r = client.delete(f"/datasets/{d['id']}")
+    assert_one_sentence_error(r, "E-DS-003", 409)
+
+    # 거부됐으니 아무것도 지워지지 않아야 한다.
+    assert stored_files(settings) != []
+    with db.session(settings.db_path) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM datasets WHERE id=?", (d["id"],)).fetchone()[0] == 1
+
+
+def test_delete_rejected_when_running_job_exists(client, settings):
+    """2. running Job이 있는 데이터셋 삭제 → 거부."""
+    from app import db
+
+    d = upload(client, make_csv(60)).json()
+    with db.session(settings.db_path) as conn:
+        _insert_job(conn, d["id"], "running")
+
+    r = client.delete(f"/datasets/{d['id']}")
+    assert_one_sentence_error(r, "E-DS-003", 409)
+
+    with db.session(settings.db_path) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM datasets WHERE id=?", (d["id"],)).fetchone()[0] == 1
+
+
+def test_delete_allowed_when_only_completed_job_exists(client, settings):
+    """3. completed Job만 있는 데이터셋 삭제 → 성공."""
+    from app import db
+
+    d = upload(client, make_csv(60)).json()
+    with db.session(settings.db_path) as conn:
+        _insert_job(conn, d["id"], "completed")
+
+    r = client.delete(f"/datasets/{d['id']}")
+    assert r.status_code == 200 and r.json() == {"deleted": d["id"]}, r.text
+    assert stored_files(settings) == []
+
+
+def test_delete_allowed_when_only_failed_job_exists(client, settings):
+    """4. failed Job만 있는 데이터셋 삭제 → 성공."""
+    from app import db
+
+    d = upload(client, make_csv(60)).json()
+    with db.session(settings.db_path) as conn:
+        _insert_job(conn, d["id"], "failed")
+
+    r = client.delete(f"/datasets/{d['id']}")
+    assert r.status_code == 200 and r.json() == {"deleted": d["id"]}, r.text
+    assert stored_files(settings) == []
+
+
+def test_delete_allowed_when_cancelled_timeout_interrupted_jobs_exist(client, settings):
+    """terminal 상태 전부(cancelled/timeout/interrupted)를 섞어도 삭제가 허용되는지 추가 확인."""
+    from app import db
+
+    d = upload(client, make_csv(60)).json()
+    with db.session(settings.db_path) as conn:
+        _insert_job(conn, d["id"], "cancelled")
+        _insert_job(conn, d["id"], "timeout")
+        _insert_job(conn, d["id"], "interrupted")
+
+    r = client.delete(f"/datasets/{d['id']}")
+    assert r.status_code == 200 and r.json() == {"deleted": d["id"]}, r.text
+
+
+def test_delete_rejected_even_if_other_jobs_for_dataset_are_terminal(client, settings):
+    """terminal Job과 활성 Job이 섞여 있어도 활성 Job이 하나라도 있으면 거부되어야 한다."""
+    from app import db
+
+    d = upload(client, make_csv(60)).json()
+    with db.session(settings.db_path) as conn:
+        _insert_job(conn, d["id"], "completed")
+        _insert_job(conn, d["id"], "queued")
+
+    r = client.delete(f"/datasets/{d['id']}")
+    assert_one_sentence_error(r, "E-DS-003", 409)
