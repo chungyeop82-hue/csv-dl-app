@@ -176,14 +176,47 @@ def get_dataset(dataset_id: str, request: Request):
 
 @router.delete("/datasets/{dataset_id}")
 def delete_dataset(dataset_id: str, request: Request):
+    """데이터셋을 지운다.
+
+    정책(STEP 10 검증 중 발견한 버그의 수정, 2026-10): 데이터셋을 지우면 그 데이터셋으로 만든
+    학습 이력(jobs, job_events)도 함께 정리한다. 이 앱은 되돌리기가 없는 1인 사용자용 도구라,
+    원본 CSV가 사라진 뒤에 남는 학습 이력은 다시 보거나 재현할 수 없어 의미가 없기 때문이다.
+
+    순서가 중요하다: app/db.py의 jobs.dataset_id 는 datasets.id 를 FOREIGN KEY 로 참조하지만
+    ON DELETE CASCADE 가 없다(의도적으로 끄지 않는다). 예전 코드처럼 CSV 파일을 먼저 지우고 나서
+    자식 행(jobs/job_events) 없이 곧장 datasets 행만 지우려 하면 FK 위반으로 500(E-SY-002)이 나고,
+    그 사이 CSV는 이미 사라져 DB에는 남아 있지만 파일은 없는 고아(orphan) 데이터셋이 생긴다.
+    그래서 ① job_events -> jobs -> datasets 를 하나의 트랜잭션에서 먼저 지우고, ② 그 트랜잭션이
+    예외 없이 끝나(커밋되어) 자식 행이 전부 사라진 뒤에만 ③ 실제 파일(업로드 CSV, 완료된 학습이
+    남긴 모델 산출물)을 정리한다. DB가 실패했는데 CSV만 먼저 없어지는 상황은 이 순서로 막는다.
+    이미 생겼던 고아 데이터셋(CSV 파일 없음)도 ③에서 missing_ok=True 로 조용히 넘어가 정상
+    정리된다.
+    """
     settings = get_settings(request)
     dataset_id = _valid_id(dataset_id)
+
     with db.session(settings.db_path) as conn:
         row = conn.execute("SELECT stored_name FROM datasets WHERE id = ?", (dataset_id,)).fetchone()
         if row is None:
             raise AppError("E-DS-001", detail="없는 id")
-        # 파일을 먼저 지우고 행을 지운다. 중간에 실패해도 목록에 남아 다시 삭제할 수 있다.
-        (settings.uploads_dir / row["stored_name"]).unlink(missing_ok=True)
+        job_rows = conn.execute("SELECT id, model_path FROM jobs WHERE dataset_id = ?", (dataset_id,)).fetchall()
+        job_ids = [j["id"] for j in job_rows]
+        if job_ids:
+            placeholders = ",".join("?" * len(job_ids))
+            conn.execute(f"DELETE FROM job_events WHERE job_id IN ({placeholders})", job_ids)
+            conn.execute(f"DELETE FROM jobs WHERE id IN ({placeholders})", job_ids)
         conn.execute("DELETE FROM datasets WHERE id = ?", (dataset_id,))
-    log.info("데이터셋 삭제 id=%s", dataset_id)
+        # 여기까지 예외 없이 끝나야 commit 된다(db.session) - 그래야만 아래에서 파일을 지운다.
+        stored_name = row["stored_name"]
+        model_paths = [j["model_path"] for j in job_rows if j["model_path"]]
+
+    # DB 트랜잭션이 성공한 뒤에만 실제 파일을 정리한다. 이미 없는 파일(고아 데이터셋)이어도
+    # missing_ok=True 로 조용히 넘어간다 - 사용자에게는 "삭제됨"으로 보이는 게 맞다.
+    (settings.uploads_dir / stored_name).unlink(missing_ok=True)
+    for model_path in model_paths:
+        model_file = Path(model_path)
+        model_file.unlink(missing_ok=True)
+        model_file.with_suffix(".prep.joblib").unlink(missing_ok=True)
+
+    log.info("데이터셋 삭제 id=%s jobs=%s", dataset_id, len(job_ids))
     return {"deleted": dataset_id}

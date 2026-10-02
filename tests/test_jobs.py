@@ -3,9 +3,12 @@ test_jobs_training.py 에 있다 - 실제 torch 가 필요해 없으면 건너�
 
 from __future__ import annotations
 
+import time
 import uuid
 
 from tests.helpers import assert_one_sentence_error, make_csv, upload
+
+_TERMINAL = {"completed", "failed", "cancelled", "timeout", "interrupted"}
 
 
 def _dataset(client):
@@ -110,3 +113,29 @@ def test_events_endpoint_streams_json_lines(client):
                 payload = _json.loads(line[len("data:"):].strip())
                 assert "status" in payload
                 break
+
+
+def test_training_with_missing_csv_file_fails_with_clear_error_not_e_sy_002(client, settings):
+    """데이터셋 DB 행은 있지만 실제 CSV 파일이 없는 고아(orphan) 상태(STEP 10 검증 중 발견한
+    데이터셋 삭제 버그가 예전에 만들어내던 상태)에서 학습을 시도하면, 분류되지 않은 예외
+    (E-SY-002) 대신 디스패처가 미리 확인해 명확한 E-DS-002 로 바로 실패해야 한다.
+
+    torch 가 없어도 돈다 - 디스패처가 워커 프로세스를 띄우기도 전에 실패 처리하기 때문이다.
+    """
+    d = upload(client, make_csv(60)).json()
+    for f in settings.uploads_dir.glob("*"):
+        f.unlink()  # 업로드 직후의 CSV 파일을 지워 "DB엔 있지만 파일은 없는" 상태를 흉내낸다
+
+    job = client.post(
+        "/jobs", json={"dataset_id": d["id"], "task": "classification", "target": "등급", "max_epochs": 1}
+    ).json()
+    assert job["status"] == "queued"
+
+    deadline = time.monotonic() + 10.0
+    final = job
+    while time.monotonic() < deadline and final["status"] not in _TERMINAL:
+        time.sleep(0.1)
+        final = client.get(f"/jobs/{job['id']}").json()
+
+    assert final["status"] == "failed", final
+    assert final["error_code"] == "E-DS-002", final

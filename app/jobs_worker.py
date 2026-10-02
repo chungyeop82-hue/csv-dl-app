@@ -159,6 +159,11 @@ def run_training_job(
         }
     except MemoryError:
         return {"status": "failed", "error_code": "E-JB-004", "detail": "MemoryError"}
+    except FileNotFoundError as exc:
+        # 디스패처(_dispatch_next)가 제출 전에 파일 존재를 확인하므로 보통은 여기까지 오지 않는다.
+        # 그 확인과 이 워커 프로세스 실행 사이의 아주 좁은 틈에 데이터셋이 지워진 경우를 위한
+        # 방어선이다 - 분류되지 않은 예외(E-SY-002) 대신 똑같이 명확한 코드로 돌려준다.
+        return {"status": "failed", "error_code": "E-DS-002", "detail": str(exc)}
     except (MLError, AppError) as exc:
         return {"status": "failed", "error_code": exc.code, "detail": getattr(exc, "detail", "")}
     except Exception as exc:  # noqa: BLE001 - 마지막 방어선. 상세는 로그용 문자열에만 담는다.
@@ -286,12 +291,23 @@ class Dispatcher:
                     (FAILED, "E-DS-001", _now(), job["id"]),
                 )
                 return
+            dataset_path_obj = self.settings.uploads_dir / dataset["stored_name"]
+            if not dataset_path_obj.exists():
+                # DB 행은 있지만 실제 CSV 파일이 없는 고아(orphan) 데이터셋이다(예: 데이터셋 삭제가
+                # FK 위반으로 절반만 끝났던 예전 버그의 잔존 데이터). 그대로 두면 워커 프로세스
+                # 안에서 FileNotFoundError 가 나 분류되지 않은 예외(E-SY-002)로 보이므로, 워커를
+                # 띄우기 전에 여기서 먼저 확인해 명확한 사용자 오류로 바로 실패 처리한다.
+                conn.execute(
+                    "UPDATE jobs SET status=?, error_code=?, finished_at=? WHERE id=?",
+                    (FAILED, "E-DS-002", _now(), job["id"]),
+                )
+                return
             conn.execute(
                 "UPDATE jobs SET status=?, started_at=? WHERE id=?", (RUNNING, _now(), job["id"])
             )
 
         config = json.loads(job["config_json"])
-        dataset_path = str(self.settings.uploads_dir / dataset["stored_name"])
+        dataset_path = str(dataset_path_obj)
         model_path = str(self.settings.models_dir / f"{job['id']}.pt")
         # SyncManager 프록시로 만들어야 한다(start() 의 주석 참고) - 실행 중인 풀에 넘길 수 있는 유일한 방식.
         queue = self._manager.Queue()

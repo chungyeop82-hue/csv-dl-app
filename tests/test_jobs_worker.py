@@ -88,3 +88,14 @@ def test_unexpected_exception_maps_to_e_sy_002_with_detail_for_log_only(dataset_
     out = _run(dataset_file, monkeypatch, raiser)
     assert out["status"] == "failed" and out["error_code"] == "E-SY-002"
     assert "예상 못한 문제" in out["detail"]  # 상세는 로그로만 가고, API 계층에서 화면에는 노출하지 않는다
+
+
+def test_file_not_found_maps_to_e_ds_002(dataset_file, monkeypatch):
+    """디스패처의 사전 확인(_dispatch_next)과 이 워커 실행 사이에 데이터셋이 지워지는 아주 좁은
+    틈을 흉내낸다 - 분류되지 않은 예외(E-SY-002) 대신 명확한 E-DS-002 로 돌려줘야 한다."""
+
+    def raiser(*a, **k):
+        raise FileNotFoundError("데이터셋 CSV 없음")
+
+    out = _run(dataset_file, monkeypatch, raiser)
+    assert out == {"status": "failed", "error_code": "E-DS-002", "detail": "데이터셋 CSV 없음"}
